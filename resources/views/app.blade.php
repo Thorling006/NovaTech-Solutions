@@ -1,21 +1,14 @@
-<!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
+<body class="font-sans antialiased">
+    @inertia
 
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
+    <div id="debug-js-error" style="position:fixed;bottom:10px;left:10px;right:10px;background:#111;color:#fff;padding:15px;z-index:9999;font-size:14px;">
+        Laravel cargó. Si ves esto, el problema es Vue/Inertia.
+    </div>
 
-        <!-- Fonts -->
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
-
-        <!-- Scripts -->
-        @routes
-        @vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])
-        @inertiaHead
-    </head>
-    <body class="font-sans antialiased">
-        @inertia
-    </body>
-</html>
+    <script>
+        window.onerror = function(message, source, lineno, colno, error) {
+            document.getElementById('debug-js-error').innerHTML =
+                'ERROR JS: ' + message + '<br>Archivo: ' + source + '<br>Línea: ' + lineno;
+        };
+    </script>
+</body>
