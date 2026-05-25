@@ -1,0 +1,1 @@
+import{_ as t}from"./_plugin-vue_export-helper-DlAUqK2U.js";import{e as n,a as o,k as a}from"./app-DkM9iYZV.js";const s={},r={style:{padding:"40px"}};function c(l,e){return a(),n("div",r,[...e[0]||(e[0]=[o("h1",null,"NovaStock funcionando correctamente 🚀",-1),o("p",null,"Sistema desplegado exitosamente en Railway.",-1)])])}const m=t(s,[["render",c]]);export{m as default};

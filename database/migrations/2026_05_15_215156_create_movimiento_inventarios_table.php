@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('movimiento_inventarios', function (Blueprint $table) {
             $table->id();
             $table->foreignId('producto_id')->constrained('productos');
-            $table->enum('tipo', ['entrada', 'salida']);
+            $table->string('tipo'); // entrada, salida
             $table->integer('cantidad');
             $table->integer('stock_anterior');
             $table->integer('stock_resultante');

@@ -7,84 +7,60 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { ref, computed } from 'vue';
 
-const props = defineProps({
-    productos: Array,
-});
-
-const form = useForm({
-    producto_id: '',
-    tipo: 'entrada',
-    cantidad: 1,
-});
-
-const selectedProduct = computed(() => {
-    return props.productos.find(p => p.id === form.producto_id) || null;
-});
-
-const submit = () => {
-    form.post(route('movimientos.store'));
-};
+const props = defineProps({ productos: Array });
+const form = useForm({ producto_id: '', tipo: 'entrada', cantidad: 1 });
+const selectedProduct = computed(() => props.productos.find(p => p.id === form.producto_id) || null);
+const submit = () => { form.post(route('movimientos.store')); };
 </script>
 
 <template>
     <Head title="Registrar Movimiento" />
-
     <AuthenticatedLayout>
-        <template #header>
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">Registrar Movimiento</h2>
-        </template>
-
-        <div class="py-12">
-            <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-6 text-gray-900">
-                        <div v-if="$page.props.flash && $page.props.flash.error" class="mb-4 text-red-600 bg-red-100 p-3 rounded">
-                            {{ $page.props.flash.error }}
+        <template #header><h2 class="font-semibold text-xl text-white leading-tight">Registrar Movimiento</h2></template>
+        <div class="py-8">
+            <div class="max-w-2xl mx-auto sm:px-6 lg:px-8">
+                <div class="card p-8">
+                    <div v-if="$page.props.flash && $page.props.flash.error" class="mb-4 flash-error">{{ $page.props.flash.error }}</div>
+                    <form @submit.prevent="submit" class="space-y-6">
+                        <div>
+                            <InputLabel for="producto_id" value="Producto" />
+                            <select id="producto_id" v-model="form.producto_id" class="select-dark mt-1 block w-full" required>
+                                <option value="" disabled>Seleccionar producto...</option>
+                                <option v-for="prod in productos" :key="prod.id" :value="prod.id">{{ prod.codigo }} - {{ prod.nombre }} (Stock: {{ prod.stock_actual }})</option>
+                            </select>
+                            <InputError class="mt-2" :message="form.errors.producto_id" />
                         </div>
-                        
-                        <form @submit.prevent="submit" class="space-y-6">
-                            
+
+                        <Transition enter-active-class="transition ease-out duration-300" enter-from-class="opacity-0 -translate-y-2" enter-to-class="opacity-100 translate-y-0">
+                            <div v-if="selectedProduct" class="bg-zinc-800/40 border border-zinc-800 p-4 rounded-xl flex items-center gap-4">
+                                <img v-if="selectedProduct.imagen" :src="`/storage/${selectedProduct.imagen}`" class="w-14 h-14 object-cover rounded-xl border border-zinc-700" />
+                                <div>
+                                    <p class="font-medium text-zinc-200">{{ selectedProduct.nombre }}</p>
+                                    <p class="text-sm text-zinc-500">Stock actual: <span class="font-medium text-white">{{ selectedProduct.stock_actual }}</span> · Mínimo: {{ selectedProduct.stock_minimo }}</p>
+                                </div>
+                            </div>
+                        </Transition>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                             <div>
-                                <InputLabel for="producto_id" value="Producto" />
-                                <select id="producto_id" v-model="form.producto_id" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" required>
-                                    <option value="" disabled>Seleccionar producto...</option>
-                                    <option v-for="prod in productos" :key="prod.id" :value="prod.id">
-                                        {{ prod.codigo }} - {{ prod.nombre }} (Stock actual: {{ prod.stock_actual }})
-                                    </option>
+                                <InputLabel for="tipo" value="Tipo de Movimiento" />
+                                <select id="tipo" v-model="form.tipo" class="select-dark mt-1 block w-full" required>
+                                    <option value="entrada">Entrada (Añadir)</option>
+                                    <option value="salida">Salida (Restar)</option>
                                 </select>
-                                <InputError class="mt-2" :message="form.errors.producto_id" />
+                                <InputError class="mt-2" :message="form.errors.tipo" />
                             </div>
-
-                            <div v-if="selectedProduct" class="bg-blue-50 p-4 rounded-md flex items-center gap-4">
-                                <img v-if="selectedProduct.imagen" :src="`/storage/${selectedProduct.imagen}`" class="w-16 h-16 object-cover rounded" />
-                                <div>
-                                    <p class="font-bold">{{ selectedProduct.nombre }}</p>
-                                    <p class="text-sm text-gray-600">Stock actual: <span class="font-bold text-gray-900">{{ selectedProduct.stock_actual }}</span> | Stock mínimo: {{ selectedProduct.stock_minimo }}</p>
-                                </div>
+                            <div>
+                                <InputLabel for="cantidad" value="Cantidad" />
+                                <TextInput id="cantidad" type="number" min="1" class="mt-1 block w-full" v-model="form.cantidad" required />
+                                <InputError class="mt-2" :message="form.errors.cantidad" />
                             </div>
-
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <InputLabel for="tipo" value="Tipo de Movimiento" />
-                                    <select id="tipo" v-model="form.tipo" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm mt-1 block w-full" required>
-                                        <option value="entrada">Entrada (Añadir al stock)</option>
-                                        <option value="salida">Salida (Restar al stock)</option>
-                                    </select>
-                                    <InputError class="mt-2" :message="form.errors.tipo" />
-                                </div>
-                                <div>
-                                    <InputLabel for="cantidad" value="Cantidad" />
-                                    <TextInput id="cantidad" type="number" min="1" class="mt-1 block w-full" v-model="form.cantidad" required />
-                                    <InputError class="mt-2" :message="form.errors.cantidad" />
-                                </div>
-                            </div>
-
-                            <div class="flex items-center gap-4 pt-4 border-t">
-                                <PrimaryButton :disabled="form.processing">Registrar Movimiento</PrimaryButton>
-                                <Link :href="route('movimientos.index')" class="text-gray-600 hover:underline">Cancelar</Link>
-                            </div>
-                        </form>
-                    </div>
+                        </div>
+                        <div class="flex items-center gap-4 pt-4 border-t border-zinc-800/50">
+                            <PrimaryButton :disabled="form.processing">Registrar Movimiento</PrimaryButton>
+                            <Link :href="route('movimientos.index')" class="text-zinc-500 hover:text-white text-sm transition-colors">Cancelar</Link>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>

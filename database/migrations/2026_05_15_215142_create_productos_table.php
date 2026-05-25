@@ -20,7 +20,7 @@ return new class extends Migration
             $table->decimal('precio', 10, 2);
             $table->integer('stock_actual')->default(0);
             $table->integer('stock_minimo')->default(0);
-            $table->enum('estado', ['disponible', 'stock_bajo', 'agotado', 'inactivo'])->default('disponible');
+            $table->string('estado')->default('disponible'); // disponible, stock_bajo, agotado, inactivo
             $table->string('imagen')->nullable();
             $table->timestamps();
         });
