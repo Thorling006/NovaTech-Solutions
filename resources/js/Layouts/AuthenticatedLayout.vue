@@ -31,6 +31,7 @@ const showingNavigationDropdown = ref(false);
                             <!-- Navigation Links -->
                             <div class="hidden space-x-6 sm:-my-px sm:ms-8 sm:flex">
                                 <NavLink
+                                    v-if="[1, 2, 3].includes($page.props.auth.user.role_id)"
                                     :href="route('dashboard')"
                                     :active="route().current('dashboard')"
                                 >
@@ -57,18 +58,28 @@ const showingNavigationDropdown = ref(false);
                                 >
                                     Productos
                                 </NavLink>
+
                                 <NavLink
-                                    v-if="$page.props.auth.user.role_id === 1 || $page.props.auth.user.role_id === 2"
-                                    :href="route('ventas.index')"
-                                    :active="route().current('ventas.*')"
-                                >
-                                    Ventas Sim.
-                                </NavLink>
-                                <NavLink
+                                    v-if="[1, 2, 3].includes($page.props.auth.user.role_id)"
                                     :href="route('movimientos.index')"
                                     :active="route().current('movimientos.*')"
                                 >
                                     Movimientos
+                                </NavLink>
+                                
+                                <NavLink
+                                    v-if="$page.props.auth.user.role_id === 1 || $page.props.auth.user.role_id === 2"
+                                    :href="route('rutas.index')"
+                                    :active="route().current('rutas.*')"
+                                >
+                                    Rutas
+                                </NavLink>
+                                <NavLink
+                                    v-if="$page.props.auth.user.role_id === 4"
+                                    :href="route('conductor.dashboard')"
+                                    :active="route().current('conductor.*')"
+                                >
+                                    Panel Conductor
                                 </NavLink>
                             </div>
                         </div>
@@ -180,6 +191,7 @@ const showingNavigationDropdown = ref(false);
                     >
                         <div class="space-y-1 pb-3 pt-2">
                             <ResponsiveNavLink
+                                v-if="[1, 2, 3].includes($page.props.auth.user.role_id)"
                                 :href="route('dashboard')"
                                 :active="route().current('dashboard')"
                             >
@@ -207,17 +219,26 @@ const showingNavigationDropdown = ref(false);
                                 Productos
                             </ResponsiveNavLink>
                             <ResponsiveNavLink
-                                v-if="$page.props.auth.user.role_id === 1 || $page.props.auth.user.role_id === 2"
-                                :href="route('ventas.index')"
-                                :active="route().current('ventas.*')"
-                            >
-                                Ventas Sim.
-                            </ResponsiveNavLink>
-                            <ResponsiveNavLink
+                                v-if="[1, 2, 3].includes($page.props.auth.user.role_id)"
                                 :href="route('movimientos.index')"
                                 :active="route().current('movimientos.*')"
                             >
                                 Movimientos
+                            </ResponsiveNavLink>
+                            
+                            <ResponsiveNavLink
+                                v-if="$page.props.auth.user.role_id === 1 || $page.props.auth.user.role_id === 2"
+                                :href="route('rutas.index')"
+                                :active="route().current('rutas.*')"
+                            >
+                                Rutas
+                            </ResponsiveNavLink>
+                            <ResponsiveNavLink
+                                v-if="$page.props.auth.user.role_id === 4"
+                                :href="route('conductor.dashboard')"
+                                :active="route().current('conductor.*')"
+                            >
+                                Panel Conductor
                             </ResponsiveNavLink>
                         </div>
 

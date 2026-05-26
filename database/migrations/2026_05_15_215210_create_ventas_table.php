@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('ventas', function (Blueprint $table) {
-            $table->id();
+            $table->string('id')->primary();
             $table->foreignId('cliente_id')->constrained('clientes');
             $table->decimal('total', 10, 2);
             $table->string('estado')->default('pendiente'); // pendiente, completada, cancelada

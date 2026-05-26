@@ -37,10 +37,22 @@ class CatalogoController extends Controller
             'cliente.nombre' => 'required|string|max:255',
             'cliente.correo' => 'required|email|max:255',
             'cliente.telefono' => 'nullable|string|max:20',
+            'metodo_pago' => 'required|string|in:cash,card',
+            'tarjeta.numero' => 'required_if:metodo_pago,card|nullable|string|min:12|max:19',
+            'tarjeta.titular' => 'required_if:metodo_pago,card|nullable|string|max:255',
+            'tarjeta.expiracion' => 'required_if:metodo_pago,card|nullable|string|min:4|max:5',
+            'tarjeta.cvv' => 'required_if:metodo_pago,card|nullable|string|digits_between:3,4',
+            'direccion' => 'required|string|max:500',
+            'latitud' => 'required|numeric',
+            'longitud' => 'required|numeric',
+            'horario_entrega' => 'required|string|max:255',
             'carrito' => 'required|array|min:1',
             'carrito.*.producto_id' => 'required|exists:productos,id',
             'carrito.*.cantidad' => 'required|integer|min:1',
         ]);
+
+        // Simular validación y procesamiento de pago (3 segundos)
+        sleep(3);
 
         try {
             DB::beginTransaction();
@@ -54,11 +66,41 @@ class CatalogoController extends Controller
                 ]
             );
 
+            // Calcular tarifa de envío (base: 13.840204, -88.854427)
+            $latBase = 13.840204;
+            $lngBase = -88.854427;
+            $latTarget = $request->input('latitud');
+            $lngTarget = $request->input('longitud');
+
+            $earthRadius = 6371; // radio de la tierra en km
+            $dLat = deg2rad($latTarget - $latBase);
+            $dLng = deg2rad($lngTarget - $lngBase);
+            $a = sin($dLat/2) * sin($dLat/2) + cos(deg2rad($latBase)) * cos(deg2rad($latTarget)) * sin($dLng/2) * sin($dLng/2);
+            $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+            $distanciaKm = $earthRadius * $c;
+
+            $costo_envio = 0;
+            if ($distanciaKm <= 5) {
+                $costo_envio = 2.00;
+            } elseif ($distanciaKm <= 20) {
+                $costo_envio = 3.50;
+            } elseif ($distanciaKm <= 50) {
+                $costo_envio = 5.00;
+            } else {
+                $costo_envio = 5.00 + (($distanciaKm - 50) * 0.05);
+            }
+
             // 2. Crear Venta
             $venta = Venta::create([
                 'cliente_id' => $cliente->id,
                 'total' => 0, // Se calculará ahora
+                'costo_envio' => $costo_envio,
+                'estado_envio' => 'pendiente',
                 'estado' => 'completada',
+                'direccion' => $request->input('direccion'),
+                'latitud' => $request->input('latitud'),
+                'longitud' => $request->input('longitud'),
+                'horario_entrega' => $request->input('horario_entrega'),
             ]);
 
             $total = 0;
@@ -97,6 +139,7 @@ class CatalogoController extends Controller
                     'stock_anterior' => $stock_anterior,
                     'stock_resultante' => $stock_resultante,
                     'user_id' => $adminUser->id ?? 1, // Usuario por defecto del sistema
+                    'venta_id' => $venta->id,
                 ]);
 
                 // Actualizar producto
@@ -113,12 +156,18 @@ class CatalogoController extends Controller
                 ]);
             }
 
-            // Actualizar total de la venta
-            $venta->update(['total' => $total]);
+            // Actualizar total de la venta (Subtotal productos + costo envío)
+            $venta->update(['total' => $total + $costo_envio]);
+
+            // Refrescar el modelo para asegurar tener el tracking_id generado
+            $venta->refresh();
 
             DB::commit();
 
-            return back()->with('success', '¡Compra simulada con éxito! Revisa el historial de ventas en el panel.');
+            return back()->with([
+                'success' => '¡Compra completada con éxito!',
+                'tracking_id' => $venta->tracking_id
+            ]);
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->withErrors(['checkout' => $e->getMessage()]);

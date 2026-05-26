@@ -1,6 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, router } from '@inertiajs/vue3';
+import { onMounted, onUnmounted } from 'vue';
 
 const props = defineProps({ productos: Array });
 const form = useForm({});
@@ -20,6 +21,16 @@ const getBadgeClass = (estado) => {
         default: return 'badge-neutral';
     }
 };
+
+let refreshInterval = null;
+onMounted(() => {
+    refreshInterval = setInterval(() => {
+        router.reload({ preserveState: true, preserveScroll: true });
+    }, 10000);
+});
+onUnmounted(() => {
+    if (refreshInterval) clearInterval(refreshInterval);
+});
 </script>
 
 <template>

@@ -16,6 +16,12 @@ const toggleEstado = (categoria) => {
         }
     });
 };
+
+const deleteCategoria = (categoria) => {
+    if (confirm('¡PELIGRO! ¿Estás seguro de eliminar esta categoría? Esta acción borrará permanentemente TODOS los productos que estén dentro de ella.')) {
+        form.delete(route('categorias.destroy', categoria.id));
+    }
+};
 </script>
 
 <template>
@@ -62,6 +68,9 @@ const toggleEstado = (categoria) => {
                                         <Link :href="route('categorias.edit', categoria.id)" class="link-action">Editar</Link>
                                         <button @click="toggleEstado(categoria)" class="link-action-danger">
                                             {{ categoria.estado ? 'Desactivar' : 'Activar' }}
+                                        </button>
+                                        <button v-if="$page.props.auth.user.role_id === 1" @click="deleteCategoria(categoria)" class="link-action-danger font-bold uppercase text-xs">
+                                            Eliminar
                                         </button>
                                     </td>
                                 </tr>

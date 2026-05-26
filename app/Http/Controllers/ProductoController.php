@@ -107,9 +107,7 @@ class ProductoController extends Controller
 
     public function destroy(Producto $producto)
     {
-        if ($producto->movimientos()->count() > 0) {
-            return redirect()->route('productos.index')->with('error', 'No se puede eliminar el producto porque tiene movimientos de inventario. Puedes cambiar su estado a inactivo.');
-        }
+        // Movimientos y detalles de venta se eliminan en cascada
 
         if ($producto->imagen && Storage::disk('public')->exists($producto->imagen)) {
             Storage::disk('public')->delete($producto->imagen);

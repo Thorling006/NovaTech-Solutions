@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
         $roleSuper = \App\Models\Role::create(['nombre' => 'Superusuario']);
         $roleAdmin = \App\Models\Role::create(['nombre' => 'Administrador']);
         $roleEmpleado = \App\Models\Role::create(['nombre' => 'Empleado']);
+        $roleConductor = \App\Models\Role::create(['nombre' => 'Conductor']);
 
         User::create([
             'name' => 'Super Admin',

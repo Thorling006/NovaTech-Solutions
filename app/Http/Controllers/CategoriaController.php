@@ -60,12 +60,7 @@ class CategoriaController extends Controller
 
     public function destroy(Categoria $categoria)
     {
-        // Alternativamente solo desactivarla, pero el requerimiento dice "Desactivar categoría" en el front,
-        // asumiendo que delete es eliminar y desactivar es cambiar estado.
-        // Verificamos si tiene productos antes de eliminar
-        if ($categoria->productos()->count() > 0) {
-            return redirect()->route('categorias.index')->with('error', 'No se puede eliminar la categoría porque tiene productos asociados. Prueba desactivándola.');
-        }
+        // Se eliminan en cascada los productos asociados desde la base de datos
 
         $categoria->delete();
         return redirect()->route('categorias.index')->with('success', 'Categoría eliminada exitosamente.');
