@@ -79,6 +79,10 @@ class UserController extends Controller
         if (auth()->id() === $user->id) {
             return redirect()->route('users.index')->with('error', 'No puedes eliminar tu propia cuenta.');
         }
+
+        if ($user->foto) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($user->foto);
+        }
         
         $user->delete();
         return redirect()->route('users.index')->with('success', 'Usuario eliminado exitosamente.');

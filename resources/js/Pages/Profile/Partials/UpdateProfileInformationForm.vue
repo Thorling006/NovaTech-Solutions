@@ -4,6 +4,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Link, useForm, usePage } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 defineProps({
     mustVerifyEmail: {
@@ -15,11 +16,41 @@ defineProps({
 });
 
 const user = usePage().props.auth.user;
+const photoInput = ref(null);
+const photoPreviewName = ref('');
 
 const form = useForm({
+    _method: 'patch',
     name: user.name,
     email: user.email,
+    foto: null,
 });
+
+const triggerPhotoSelect = () => {
+    photoInput.value.click();
+};
+
+const onPhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        form.foto = file;
+        photoPreviewName.value = file.name;
+    }
+};
+
+const submitProfile = () => {
+    form.post(route('profile.update'), {
+        onSuccess: () => {
+            photoPreviewName.value = '';
+        },
+        onError: () => {
+            if (form.errors.foto) {
+                form.foto = null;
+                photoPreviewName.value = '';
+            }
+        }
+    });
+};
 </script>
 
 <template>
@@ -35,9 +66,42 @@ const form = useForm({
         </header>
 
         <form
-            @submit.prevent="form.patch(route('profile.update'))"
+            @submit.prevent="submitProfile"
             class="mt-6 space-y-6"
+            enctype="multipart/form-data"
         >
+            <!-- Profile Photo Section -->
+            <div class="space-y-2 mb-6">
+                <InputLabel for="foto" value="Foto de Perfil" />
+                <div class="flex items-center gap-4">
+                    <div class="relative w-20 h-20 rounded-full overflow-hidden border border-zinc-700 bg-zinc-800 flex items-center justify-center">
+                        <img v-if="user.foto_url" :src="user.foto_url" alt="Foto de perfil" class="w-full h-full object-cover" />
+                        <span v-else class="text-2xl font-bold text-zinc-500 uppercase">{{ user.name.charAt(0) }}</span>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <input
+                            id="foto"
+                            type="file"
+                            ref="photoInput"
+                            class="hidden"
+                            @change="onPhotoChange"
+                            accept="image/*"
+                        />
+                        <button
+                            type="button"
+                            @click="triggerPhotoSelect"
+                            class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-md text-sm font-medium text-white transition duration-150"
+                        >
+                            Seleccionar Foto
+                        </button>
+                        <span v-if="photoPreviewName" class="text-xs text-zinc-400">
+                            {{ photoPreviewName }}
+                        </span>
+                        <InputError class="mt-1" :message="form.errors.foto" />
+                    </div>
+                </div>
+            </div>
             <div>
                 <InputLabel for="name" value="Name" />
                 <TextInput

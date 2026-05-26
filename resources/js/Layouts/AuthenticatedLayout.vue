@@ -94,8 +94,9 @@ const showingNavigationDropdown = ref(false);
                                                 type="button"
                                                 class="inline-flex items-center rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm font-medium text-zinc-400 transition-all duration-200 hover:text-white hover:border-zinc-700 focus:outline-none"
                                             >
-                                                <div class="w-6 h-6 rounded-full bg-zinc-700 flex items-center justify-center mr-2 text-xs text-white font-medium">
-                                                    {{ $page.props.auth.user.name.charAt(0) }}
+                                                <div class="w-6 h-6 rounded-full overflow-hidden border border-zinc-700 bg-zinc-800 flex items-center justify-center mr-2">
+                                                    <img v-if="$page.props.auth.user.foto_url" :src="$page.props.auth.user.foto_url" alt="Avatar" class="w-full h-full object-cover" />
+                                                    <span v-else class="text-xs text-white font-medium uppercase">{{ $page.props.auth.user.name.charAt(0) }}</span>
                                                 </div>
                                                 {{ $page.props.auth.user.name }}
 
