@@ -28,6 +28,7 @@ class MovimientoInventarioController extends Controller
         // 3. Ventas (Cargamos las ventas con su cliente y detalles de productos)
         $ventas = \App\Models\Venta::with(['cliente', 'detalles.producto'])
             ->orderBy('created_at', 'desc')
+            ->take(100)
             ->get();
             
         return Inertia::render('Movimientos/Index', [

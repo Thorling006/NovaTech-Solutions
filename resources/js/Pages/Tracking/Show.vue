@@ -20,8 +20,8 @@ const getStatus = (status) => statusInfo[status] || statusInfo['pendiente'];
 const initMap = () => {
     if (!window.L) return;
 
-    const latBase = 13.840204;
-    const lngBase = -88.854427;
+    const latBase = 13.348428;
+    const lngBase = -88.440182;
     const latDest = props.venta.latitud;
     const lngDest = props.venta.longitud;
 

@@ -18,12 +18,15 @@ const formatDate = (dateString) => {
                 <div class="card overflow-hidden">
                     <div class="p-6 overflow-x-auto">
                         <table class="table-minimal">
-                            <thead><tr><th>ID / Fecha</th><th>Cliente</th><th>Estado</th><th class="text-right">Total</th><th class="text-right">Acciones</th></tr></thead>
+                            <thead><tr><th>ID / Fecha</th><th>Código de Seguimiento</th><th>Cliente</th><th>Estado</th><th class="text-right">Total</th><th class="text-right">Acciones</th></tr></thead>
                             <tbody>
                                 <tr v-for="venta in ventas" :key="venta.id">
                                     <td>
                                         <div class="font-medium text-zinc-200">#{{ venta.id }}</div>
                                         <div class="text-xs text-zinc-600">{{ formatDate(venta.created_at) }}</div>
+                                    </td>
+                                    <td>
+                                        <span class="font-mono text-xs text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20 font-bold select-all">{{ venta.tracking_id || 'N/A' }}</span>
                                     </td>
                                     <td>
                                         <div class="text-zinc-200">{{ venta.cliente?.nombre }}</div>
@@ -35,7 +38,7 @@ const formatDate = (dateString) => {
                                         <Link :href="route('ventas.show', venta.id)" class="link-action">Ver Detalles →</Link>
                                     </td>
                                 </tr>
-                                <tr v-if="ventas.length === 0"><td colspan="5" class="text-center text-zinc-600 py-8">No hay ventas registradas.</td></tr>
+                                <tr v-if="ventas.length === 0"><td colspan="6" class="text-center text-zinc-600 py-8">No hay ventas registradas.</td></tr>
                             </tbody>
                         </table>
                     </div>

@@ -31,8 +31,8 @@ class ConductorPanelController extends Controller
                 'estado' => 'disponible',
                 'vehiculo_tipo' => 'moto',
                 'foto_url' => 'https://ui-avatars.com/api/?name='.urlencode($request->user()->name).'&background=3f3f46&color=fff',
-                'latitud_actual' => 13.840204,
-                'longitud_actual' => -88.854427
+                'latitud_actual' => 13.348428,
+                'longitud_actual' => -88.440182
             ]);
         }
 
@@ -41,7 +41,7 @@ class ConductorPanelController extends Controller
             $query->orderBy('orden_ruta', 'asc')->with('cliente');
         }])
         ->where('conductor_id', $conductor->id)
-        ->whereIn('estado', ['creada', 'en_curso'])
+        ->whereIn('estado', ['creada', 'en_curso', 'retorno'])
         ->get();
 
         return Inertia::render('Conductor/Dashboard', [
@@ -59,15 +59,46 @@ class ConductorPanelController extends Controller
         DB::transaction(function() use ($ruta, $conductor) {
             $ruta->update(['estado' => 'en_curso']);
             $conductor->update(['estado' => 'ocupado']);
-            
-            // Poner el primer punto en camino
+        });
+
+        return back()->with('success', 'Ruta iniciada. Dirígete al Almacén Base para cargar los pedidos.');
+    }
+
+    public function llegarAlAlmacen(Request $request, RutaLogistica $ruta)
+    {
+        $conductor = Conductor::where('user_id', $request->user()->id)->firstOrFail();
+        
+        if ($ruta->conductor_id !== $conductor->id) abort(403);
+        if ($ruta->estado !== 'en_curso') abort(400, 'La ruta no está en curso.');
+        if ($ruta->llegada_almacen_inicial !== null) {
+            return back()->withErrors(['geocerca' => 'Ya has registrado la llegada inicial al almacén.']);
+        }
+
+        $request->validate([
+            'lat' => 'required|numeric',
+            'lng' => 'required|numeric'
+        ]);
+
+        $distanciaKm = $this->calcularDistancia($request->lat, $request->lng, 13.348428, -88.440182);
+
+        // Geocerca de 300 metros (0.3 km)
+        if ($distanciaKm > 0.3) {
+            return back()->withErrors(['geocerca' => 'Debes estar físicamente en el almacén para cargar pedidos. Distancia actual: ' . round($distanciaKm * 1000) . ' metros.']);
+        }
+
+        DB::transaction(function() use ($ruta, $request) {
+            $ruta->update([
+                'llegada_almacen_inicial' => now()
+            ]);
+
+            // Poner el primer punto (pedido) de entrega en camino
             $primeraVenta = $ruta->ventas()->orderBy('orden_ruta', 'asc')->first();
             if ($primeraVenta) {
                 $primeraVenta->update(['estado_entrega_geocerca' => 'en_camino']);
             }
         });
 
-        return back()->with('success', '¡Ruta Iniciada! Navega hacia el primer punto.');
+        return back()->with('success', '¡Entrada y carga registradas en el almacén! Iniciando itinerario de entregas.');
     }
 
     public function llegarAlPunto(Request $request, Venta $venta)
@@ -142,13 +173,45 @@ class ConductorPanelController extends Controller
             if ($siguienteVenta) {
                 $siguienteVenta->update(['estado_entrega_geocerca' => 'en_camino']);
             } else {
-                // Si no hay siguiente, finalizar la ruta maestra
-                RutaLogistica::where('id', $venta->ruta_logistica_id)->update(['estado' => 'finalizada']);
-                Conductor::where('id', $venta->conductor_id)->update(['estado' => 'disponible']);
+                // Si no hay siguiente, poner la ruta en retorno al almacén (no finalizar automáticamente)
+                RutaLogistica::where('id', $venta->ruta_logistica_id)->update(['estado' => 'retorno']);
             }
         });
 
         return back()->with('success', 'Punto finalizado. Avanzando en la ruta...');
+    }
+
+    public function finalizarRuta(Request $request, RutaLogistica $ruta)
+    {
+        $conductor = Conductor::where('user_id', $request->user()->id)->firstOrFail();
+        
+        if ($ruta->conductor_id !== $conductor->id) abort(403);
+        if ($ruta->estado !== 'retorno') {
+            return back()->withErrors(['geocerca' => 'La ruta no se encuentra lista para finalizar o ya ha sido completada.']);
+        }
+
+        $request->validate([
+            'lat' => 'required|numeric',
+            'lng' => 'required|numeric'
+        ]);
+
+        $distanciaKm = $this->calcularDistancia($request->lat, $request->lng, 13.348428, -88.440182);
+
+        // Geocerca de 300 metros (0.3 km)
+        if ($distanciaKm > 0.3) {
+            return back()->withErrors(['geocerca' => 'Debes estar físicamente en el almacén para marcar salida (finalizar entrega). Distancia: ' . round($distanciaKm * 1000) . ' metros.']);
+        }
+
+        DB::transaction(function() use ($ruta, $conductor, $request) {
+            $ruta->update(['estado' => 'finalizada']);
+            $conductor->update([
+                'estado' => 'disponible',
+                'latitud_actual' => $request->lat,
+                'longitud_actual' => $request->lng
+            ]);
+        });
+
+        return back()->with('success', '¡Salida registrada con éxito! Has finalizado la ruta en el almacén.');
     }
 
     public function updateVehicle(Request $request)
@@ -160,19 +223,27 @@ class ConductorPanelController extends Controller
 
     public function cancelarRuta(Request $request, RutaLogistica $ruta)
     {
+        // Limpiar foto si no es un archivo (Inertia suele serializar null como string o vacio)
+        if ($request->has('foto') && !$request->hasFile('foto')) {
+            $request->offsetUnset('foto');
+        }
+
         $request->validate([
             'motivo' => 'required|string|max:1000',
-            'foto' => 'required|image|max:5120' // max 5MB
+            'foto' => 'nullable|image|max:5120' // max 5MB, optional
         ]);
 
-        if ($ruta->estado !== 'en_curso') {
-            return back()->withErrors(['ruta' => 'Solo puedes cancelar una ruta que está en curso.']);
+        if (!in_array($ruta->estado, ['en_curso', 'retorno'])) {
+            return back()->withErrors(['ruta' => 'Solo puedes cancelar una ruta que está en curso o en retorno.']);
         }
 
         DB::beginTransaction();
 
         try {
-            $path = $request->file('foto')->store('cancelaciones_rutas', 'public');
+            $path = null;
+            if ($request->hasFile('foto')) {
+                $path = $request->file('foto')->store('cancelaciones_rutas', 'public');
+            }
 
             // Actualizar ruta a cancelada
             $ruta->update([

@@ -17,6 +17,9 @@ class RutaLogistica extends Model
         'estado',
         'fecha_programada',
         'hora_programada',
+        'llegada_almacen_inicial',
+        'motivo_cancelacion',
+        'foto_cancelacion',
     ];
 
     public function conductor()

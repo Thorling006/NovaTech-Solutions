@@ -36,7 +36,7 @@ class CatalogoController extends Controller
         $request->validate([
             'cliente.nombre' => 'required|string|max:255',
             'cliente.correo' => 'required|email|max:255',
-            'cliente.telefono' => 'nullable|string|max:20',
+            'cliente.telefono' => 'required|string|max:20',
             'metodo_pago' => 'required|string|in:cash,card',
             'tarjeta.numero' => 'required_if:metodo_pago,card|nullable|string|min:12|max:19',
             'tarjeta.titular' => 'required_if:metodo_pago,card|nullable|string|max:255',
@@ -51,9 +51,7 @@ class CatalogoController extends Controller
             'carrito.*.cantidad' => 'required|integer|min:1',
         ]);
 
-        // Simular validación y procesamiento de pago (3 segundos)
-        sleep(3);
-
+        // Procesamiento de pago inmediato
         try {
             DB::beginTransaction();
 
@@ -66,9 +64,9 @@ class CatalogoController extends Controller
                 ]
             );
 
-            // Calcular tarifa de envío (base: 13.840204, -88.854427)
-            $latBase = 13.840204;
-            $lngBase = -88.854427;
+            // Calcular tarifa de envío (base: 13.348428, -88.440182)
+            $latBase = 13.348428;
+            $lngBase = -88.440182;
             $latTarget = $request->input('latitud');
             $lngTarget = $request->input('longitud');
 
@@ -104,6 +102,7 @@ class CatalogoController extends Controller
             ]);
 
             $total = 0;
+            $productosBajoStock = [];
 
             // Obtener el ID del SuperAdmin o un usuario genérico para registrar el movimiento
             $adminUser = User::where('role_id', 1)->first();
@@ -144,16 +143,34 @@ class CatalogoController extends Controller
 
                 // Actualizar producto
                 $nuevo_estado = $producto->estado;
+                $shouldSendAlert = false;
+
                 if ($stock_resultante == 0) {
                     $nuevo_estado = 'agotado';
                 } elseif ($stock_resultante <= $producto->stock_minimo) {
                     $nuevo_estado = 'stock_bajo';
+                    // Si el stock actual antes de la compra era mayor al stock mínimo
+                    // o si la alerta no ha sido enviada aún.
+                    if (!$producto->stock_alert_sent) {
+                        $shouldSendAlert = true;
+                    }
                 }
 
-                $producto->update([
+                $updateData = [
                     'stock_actual' => $stock_resultante,
                     'estado' => $nuevo_estado
-                ]);
+                ];
+
+                if ($shouldSendAlert) {
+                    $updateData['stock_alert_sent'] = true;
+                }
+
+                $producto->update($updateData);
+
+                if ($shouldSendAlert) {
+                    // Guardamos la referencia para enviar después del commit exitoso
+                    $productosBajoStock[] = $producto;
+                }
             }
 
             // Actualizar total de la venta (Subtotal productos + costo envío)
@@ -162,15 +179,75 @@ class CatalogoController extends Controller
             // Refrescar el modelo para asegurar tener el tracking_id generado
             $venta->refresh();
 
+            // Preparar información de pago para la factura
+            $paymentInfo = [
+                'metodo' => $request->metodo_pago
+            ];
+
+            if ($request->metodo_pago === 'card') {
+                $num = $request->input('tarjeta.numero');
+                $paymentInfo['titular'] = $request->input('tarjeta.titular');
+                $paymentInfo['ultimos_cuatro'] = substr($num, -4);
+            }
+
+            // Generar PDF de la factura
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.invoice', [
+                'venta' => $venta,
+                'payment_info' => $paymentInfo
+            ]);
+            $pdfContent = $pdf->output();
+            $pdfFileName = 'factura-' . $venta->id . '.pdf';
+
+            // Guardar factura temporalmente para que pueda ser descargada de inmediato si se desea
+            \Illuminate\Support\Facades\Storage::disk('public')->put('facturas/' . $pdfFileName, $pdfContent);
+
             DB::commit();
+
+            // Enviar correo de confirmación al cliente con el PDF adjunto
+            try {
+                \Illuminate\Support\Facades\Mail::to($cliente->correo)
+                    ->send(new \App\Mail\PurchaseConfirmation($venta, $pdfContent, $pdfFileName));
+            } catch (\Exception $mailEx) {
+                \Illuminate\Support\Facades\Log::error('Error al enviar correo de confirmación de compra: ' . $mailEx->getMessage());
+            }
+
+            // Enviar alertas de stock bajo urgentes a antonikevin308@gmail.com
+            foreach ($productosBajoStock as $prod) {
+                try {
+                    \Illuminate\Support\Facades\Mail::to('antoniokevin308@gmail.com')
+                        ->send(new \App\Mail\LowStockAlert($prod));
+                } catch (\Exception $stockMailEx) {
+                    \Illuminate\Support\Facades\Log::error('Error al enviar correo de alerta de stock para ' . $prod->nombre . ': ' . $stockMailEx->getMessage());
+                }
+            }
 
             return back()->with([
                 'success' => '¡Compra completada con éxito!',
-                'tracking_id' => $venta->tracking_id
+                'tracking_id' => $venta->tracking_id,
+                'pdf_url' => asset('storage/facturas/' . $pdfFileName)
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->withErrors(['checkout' => $e->getMessage()]);
         }
+    }
+
+    public function downloadInvoice($id)
+    {
+        $venta = Venta::with(['cliente', 'detalles.producto'])->findOrFail($id);
+        
+        // Simular o buscar si se pagó con tarjeta para mostrar últimos 4 dígitos
+        // Como no guardamos la tarjeta en BD, mostramos efectivo por defecto si se descarga después,
+        // o si es la sesión actual.
+        $paymentInfo = [
+            'metodo' => 'cash'
+        ];
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.invoice', [
+            'venta' => $venta,
+            'payment_info' => $paymentInfo
+        ]);
+
+        return $pdf->download('factura-' . $venta->id . '.pdf');
     }
 }

@@ -26,7 +26,7 @@ let refreshInterval = null;
 onMounted(() => {
     refreshInterval = setInterval(() => {
         router.reload({ preserveState: true, preserveScroll: true });
-    }, 10000);
+    }, 60000);
 });
 onUnmounted(() => {
     if (refreshInterval) clearInterval(refreshInterval);

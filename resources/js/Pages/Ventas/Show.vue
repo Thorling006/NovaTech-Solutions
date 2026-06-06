@@ -37,6 +37,7 @@ const formatDate = (dateString) => {
                         <h3 class="text-xs font-medium uppercase tracking-wider text-zinc-500 mb-4 pb-3 border-b border-zinc-800/50">Detalles de la Transacción</h3>
                         <div class="space-y-3">
                             <p class="text-sm"><span class="text-zinc-500">Fecha:</span> <span class="text-zinc-200 ml-2">{{ formatDate(venta.created_at) }}</span></p>
+                            <p class="text-sm"><span class="text-zinc-500">Código de Seguimiento:</span> <span class="font-mono text-xs text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20 font-bold ml-2 select-all">{{ venta.tracking_id || 'N/A' }}</span></p>
                             <p class="text-sm"><span class="text-zinc-500">Estado:</span> <span class="badge badge-success ml-2">{{ venta.estado }}</span></p>
                             <p class="text-xl mt-4"><span class="text-zinc-500 text-sm">Total:</span> <span class="font-bold text-white ml-2">${{ venta.total }}</span></p>
                         </div>

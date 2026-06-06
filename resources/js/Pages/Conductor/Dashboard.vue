@@ -9,6 +9,15 @@ const props = defineProps({
     errors: Object
 });
 
+// Intercept console.warn to suppress OSRM demo warnings
+if (typeof window !== 'undefined') {
+    const originalWarn = console.warn;
+    console.warn = function (...args) {
+        if (args[0] && typeof args[0] === 'string' && args[0].includes("OSRM's demo server")) return;
+        originalWarn.apply(console, args);
+    };
+}
+
 const mapContainer = ref(null);
 let map = null;
 let markersLayer = null;
@@ -16,8 +25,8 @@ let polylineLayer = null;
 let driverMarker = null;
 
 // Base coordinates default (San Miguel)
-const currentLat = ref(13.840204);
-const currentLng = ref(-88.854427);
+const currentLat = ref(13.348428);
+const currentLng = ref(-88.440182);
 let geoWatchId = null;
 
 // Rastro gris (historial de ubicaciones)
@@ -26,7 +35,7 @@ let routingControl = null;
 let rastroPolyline = null;
 
 const activeRuta = computed(() => {
-    return props.rutas.find(r => r.estado === 'en_curso') || null;
+    return props.rutas.find(r => r.estado === 'en_curso' || r.estado === 'retorno') || null;
 });
 
 const pendingRutas = computed(() => {
@@ -45,7 +54,11 @@ const activeVenta = computed(() => {
 
 // Helper for UI: Next stops and completed stops
 const remainingVentas = computed(() => {
-    if (!activeRuta.value || !activeVenta.value) return [];
+    if (!activeRuta.value) return [];
+    if (!activeRuta.value.llegada_almacen_inicial) {
+        return [...activeRuta.value.ventas].sort((a, b) => a.orden_ruta - b.orden_ruta);
+    }
+    if (!activeVenta.value) return [];
     const sortedVentas = [...activeRuta.value.ventas].sort((a, b) => a.orden_ruta - b.orden_ruta);
     return sortedVentas.filter(v => v.orden_ruta > activeVenta.value.orden_ruta && v.estado_entrega_geocerca !== 'entregado' && v.estado_entrega_geocerca !== 'fallido');
 });
@@ -116,12 +129,12 @@ const drawRuta = () => {
     const latlngs = [];
     
     // Almacen Base
-    latlngs.push([13.840204, -88.854427]);
+    latlngs.push([13.348428, -88.440182]);
     const baseIcon = window.L.divIcon({
         className: 'custom-icon',
         html: `<div style="background-color:#fff; width:14px; height:14px; border-radius:50%; border:3px solid #000;"></div>`
     });
-    window.L.marker([13.840204, -88.854427], { icon: baseIcon }).addTo(markersLayer).bindPopup('Almacén');
+    window.L.marker([13.348428, -88.440182], { icon: baseIcon }).addTo(markersLayer).bindPopup('Almacén');
 
     activeRuta.value.ventas.forEach((venta) => {
         latlngs.push([venta.latitud, venta.longitud]);
@@ -148,20 +161,28 @@ const drawRuta = () => {
     }
 
     if (activeRuta.value) {
-        // Obtenemos los destinos pendientes (que no están entregados ni fallidos) ordenados lógicamente
         const waypoints = [window.L.latLng(currentLat.value, currentLng.value)];
         
-        const sortedVentas = [...activeRuta.value.ventas].sort((a, b) => a.orden_ruta - b.orden_ruta);
-        
-        sortedVentas.forEach((v) => {
-            if (v.estado_entrega_geocerca !== 'entregado' && v.estado_entrega_geocerca !== 'fallido') {
-                waypoints.push(window.L.latLng(v.latitud, v.longitud));
-            }
-        });
+        if (!activeRuta.value.llegada_almacen_inicial) {
+            // El primer punto a visitar es el almacén
+            waypoints.push(window.L.latLng(13.348428, -88.440182));
+        } else {
+            // Obtenemos los destinos pendientes (que no están entregados ni fallidos) ordenados lógicamente
+            const sortedVentas = [...activeRuta.value.ventas].sort((a, b) => a.orden_ruta - b.orden_ruta);
+            
+            sortedVentas.forEach((v) => {
+                if (v.estado_entrega_geocerca !== 'entregado' && v.estado_entrega_geocerca !== 'fallido') {
+                    waypoints.push(window.L.latLng(v.latitud, v.longitud));
+                }
+            });
+        }
 
         // Rutear desde GPS actual hasta todos los destinos pendientes
         if (waypoints.length > 1) {
             routingControl = window.L.Routing.control({
+                router: window.L.Routing.osrmv1({
+                    serviceUrl: 'https://router.project-osrm.org/route/v1'
+                }),
                 waypoints: waypoints,
                 routeWhileDragging: false,
                 addWaypoints: false,
@@ -170,7 +191,8 @@ const drawRuta = () => {
                 lineOptions: {
                     styles: [{color: '#3b82f6', opacity: 0.8, weight: 6}]
                 },
-                createMarker: function() { return null; } // Ocultar marcadores por defecto del routing
+                createMarker: function() { return null; }, // Ocultar marcadores por defecto del routing
+                show: false
             }).addTo(map);
         }
     } else {
@@ -269,17 +291,44 @@ const getDistanceFromLatLonInKm = (lat1, lon1, lat2, lon2) => {
 };
 
 const iniciarRuta = (rutaId) => {
-    const distToBase = getDistanceFromLatLonInKm(currentLat.value, currentLng.value, 13.840204, -88.854427);
+    useForm({
+        lat: currentLat.value,
+        lng: currentLng.value
+    }).post(route('conductor.ruta.iniciar', rutaId));
+};
+
+const formLlegarAlmacen = useForm({ lat: 0, lng: 0 });
+const llegarAlAlmacen = (rutaId) => {
+    const distToBase = getDistanceFromLatLonInKm(currentLat.value, currentLng.value, 13.348428, -88.440182);
     
-    // Si está a más de 500 metros (0.5 km) de la base
-    if (distToBase > 0.5) {
-        const warning = "⚠️ ADVERTENCIA ESTRICTA ⚠️\n\nEstás a " + Math.round(distToBase * 1000) + " metros de la sucursal base.\n\nPuedes iniciar la ruta desde tu ubicación actual, pero es tu ABSOLUTA RESPONSABILIDAD cumplir con la entrega de todos los paquetes asignados en los tiempos previstos. \n\n¿Aceptas la responsabilidad e iniciar la ruta?";
-        if (!confirm(warning)) {
-            return;
-        }
+    if (distToBase > 0.3) {
+        alert("⚠️ GEOCERCA BLOQUEADA ⚠️\n\nEstás a " + Math.round(distToBase * 1000) + " metros de la base. Debes estar a menos de 300 metros del almacén para poder registrar la entrada/carga.");
+        return;
     }
     
-    useForm({}).post(route('conductor.ruta.iniciar', rutaId));
+    formLlegarAlmacen.lat = currentLat.value;
+    formLlegarAlmacen.lng = currentLng.value;
+    formLlegarAlmacen.post(route('conductor.ruta.llegar_almacen', rutaId), {
+        preserveScroll: true
+    });
+};
+
+const formFinalizarRuta = useForm({ lat: 0, lng: 0 });
+const finalizarRuta = (rutaId) => {
+    const distToBase = getDistanceFromLatLonInKm(currentLat.value, currentLng.value, 13.348428, -88.440182);
+    
+    if (distToBase > 0.3) {
+        alert("⚠️ GEOCERCA BLOQUEADA ⚠️\n\nEstás a " + Math.round(distToBase * 1000) + " metros del almacén. Debes estar a menos de 300 metros para poder marcar salida (finalizar jornada).");
+        return;
+    }
+
+    if (!confirm("¿Deseas marcar salida y finalizar la ruta en el almacén?")) {
+        return;
+    }
+
+    formFinalizarRuta.lat = currentLat.value;
+    formFinalizarRuta.lng = currentLng.value;
+    formFinalizarRuta.post(route('conductor.ruta.finalizar', rutaId));
 };
 
 const formLlegar = useForm({ lat: 0, lng: 0 });
@@ -350,13 +399,46 @@ const finalizarPunto = (ventaId, res) => {
                     <div class="p-5 border-b border-zinc-800 bg-zinc-900">
                         <div class="flex justify-between items-center mb-1">
                             <h2 class="font-black text-white text-lg uppercase tracking-tight">{{ activeRuta.nombre }}</h2>
-                            <span class="bg-blue-500/20 text-blue-400 text-[10px] font-bold px-2 py-1 rounded-md uppercase border border-blue-500/30 animate-pulse">En Curso</span>
+                            <span v-if="activeRuta.estado === 'retorno'" class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-1 rounded-md uppercase border border-emerald-500/30 animate-pulse">Retornando</span>
+                            <span v-else class="bg-blue-500/20 text-blue-400 text-[10px] font-bold px-2 py-1 rounded-md uppercase border border-blue-500/30 animate-pulse">En Curso</span>
                         </div>
                         <p class="text-xs text-zinc-400">Progreso: {{ activeRuta.ventas.filter(v => v.estado_entrega_geocerca === 'entregado' || v.estado_entrega_geocerca === 'fallido').length }} / {{ activeRuta.ventas.length }} puntos</p>
                     </div>
 
-                    <!-- Punto Activo (Destino) -->
-                    <div v-if="activeVenta" class="flex-grow overflow-y-auto p-5 flex flex-col justify-start">
+                    <!-- Punto Activo (Destino o Almacén) -->
+                    <div v-if="!activeRuta.llegada_almacen_inicial" class="flex-grow overflow-y-auto p-5 flex flex-col justify-start">
+                        <div class="mb-6 p-4 bg-zinc-950 border border-zinc-800 rounded-2xl relative overflow-hidden">
+                            <div class="absolute top-0 right-0 p-2 opacity-10">
+                                <svg class="w-16 h-16 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>
+                            </div>
+                            <h3 class="text-xs font-bold text-amber-500 uppercase tracking-widest mb-2">Paso 1: Dirígete al Almacén</h3>
+                            <p class="text-xl font-black text-white leading-tight">Almacén Central</p>
+                            <p class="text-sm text-zinc-400 mt-2">Debes registrar tu entrada en el almacén para cargar los productos de los pedidos antes de salir a repartir.</p>
+                            
+                            <div class="mt-4 p-3 bg-zinc-900 border border-zinc-800 rounded-xl">
+                                <p class="text-[10px] text-zinc-500 uppercase font-black">Distancia al Almacén</p>
+                                <p class="text-base font-black text-white font-mono mt-0.5">
+                                    {{ (getDistanceFromLatLonInKm(currentLat.value, currentLng.value, 13.348428, -88.440182) * 1000).toFixed(0) }} metros
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Errores de Geocerca -->
+                        <div v-if="props.errors.geocerca" class="mb-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/50 text-rose-400 text-sm text-center font-medium animate-shake">
+                            {{ props.errors.geocerca }}
+                        </div>
+
+                        <button 
+                            @click="llegarAlAlmacen(activeRuta.id)"
+                            :disabled="formLlegarAlmacen.processing"
+                            class="w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-amber-500/10 transition flex justify-center items-center gap-2"
+                        >
+                            <span v-if="formLlegarAlmacen.processing" class="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
+                            Marcar Entrada y Carga (GPS)
+                        </button>
+                    </div>
+
+                    <div v-else-if="activeVenta" class="flex-grow overflow-y-auto p-5 flex flex-col justify-start">
                         <div class="mb-6 p-4 bg-zinc-950 border border-zinc-800 rounded-2xl relative overflow-hidden">
                             <div class="absolute top-0 right-0 p-2 opacity-10">
                                 <svg class="w-16 h-16 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path></svg>
@@ -365,25 +447,15 @@ const finalizarPunto = (ventaId, res) => {
                             <p class="text-xl font-black text-white leading-tight">{{ activeVenta.cliente.nombre }}</p>
                             <p class="text-sm text-zinc-400 mt-2">{{ activeVenta.direccion }}</p>
                             
-                            <!-- Información de Contacto y Pago -->
-                            <div class="grid grid-cols-2 gap-3 mt-4">
-                                <a :href="'tel:' + (activeVenta.cliente.telefono || '00000000')" class="flex items-center gap-2 bg-zinc-900 border border-zinc-700 hover:border-blue-500 p-2.5 rounded-xl transition cursor-pointer">
-                                    <div class="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" /></svg>
-                                    </div>
-                                    <div>
-                                        <p class="text-[10px] text-zinc-500 uppercase font-bold">Llamar</p>
-                                        <p class="text-xs text-white font-mono">{{ activeVenta.cliente.telefono || 'Sin Número' }}</p>
-                                    </div>
+                            <!-- Información de Contacto y Pago Compacta -->
+                            <div class="flex flex-wrap gap-2 mt-3 text-xs">
+                                <a :href="'tel:' + (activeVenta.cliente.telefono || '00000000')" class="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 hover:border-blue-500 py-1.5 px-3 rounded-xl text-zinc-300 font-bold transition cursor-pointer">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-blue-400" viewBox="0 0 20 20" fill="currentColor"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" /></svg>
+                                    <span class="font-mono text-[11px]">{{ activeVenta.cliente.telefono || 'Llamar' }}</span>
                                 </a>
-                                <div class="flex items-center gap-2 bg-zinc-900 border border-zinc-700 p-2.5 rounded-xl">
-                                    <div class="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd" /></svg>
-                                    </div>
-                                    <div>
-                                        <p class="text-[10px] text-zinc-500 uppercase font-bold">Pago</p>
-                                        <p class="text-xs text-white capitalize">{{ activeVenta.metodo_pago || 'Efectivo' }}</p>
-                                    </div>
+                                <div class="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 py-1.5 px-3 rounded-xl text-zinc-300 font-bold">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-emerald-400" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd" /></svg>
+                                    <span class="text-[11px]">{{ activeVenta.metodo_pago ? (activeVenta.metodo_pago === 'cash' ? 'Efectivo' : (activeVenta.metodo_pago === 'card' ? 'Tarjeta' : activeVenta.metodo_pago)) : 'Efectivo' }}</span>
                                 </div>
                             </div>
                         </div>
@@ -461,10 +533,46 @@ const finalizarPunto = (ventaId, res) => {
                     </div>
 
                     <!-- Todos Completados / Sin Activos -->
-                    <div v-else class="flex-grow flex flex-col items-center justify-center p-6 text-center text-zinc-500">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-4 text-emerald-500/50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        <p class="font-medium text-white mb-1">Punto finalizado</p>
-                        <p class="text-xs">Cargando siguiente destino o finalizando ruta...</p>
+                    <div v-else class="flex-grow flex flex-col items-center justify-center p-6 text-center">
+                        <div v-if="activeRuta.estado === 'retorno'" class="w-full space-y-6">
+                            <div class="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-base font-bold text-white mb-1">Entregas Completadas</h3>
+                                <p class="text-xs text-zinc-400 max-w-xs mx-auto">Regresa al almacén base para poder registrar tu salida y finalizar la jornada.</p>
+                            </div>
+                            
+                            <!-- Distancia al almacén flotante -->
+                            <div class="p-3 bg-zinc-900 border border-zinc-800 rounded-xl max-w-xs mx-auto">
+                                <p class="text-[10px] text-zinc-500 uppercase font-black">Distancia al Almacén</p>
+                                <p class="text-base font-black text-white font-mono mt-0.5">
+                                    {{ (getDistanceFromLatLonInKm(currentLat.value, currentLng.value, 13.348428, -88.440182) * 1000).toFixed(0) }} metros
+                                </p>
+                            </div>
+
+                            <!-- Errores de Geocerca de Salida -->
+                            <div v-if="$page.props.errors.geocerca" class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/40 text-rose-450 text-xs font-semibold animate-shake">
+                                {{ $page.props.errors.geocerca }}
+                            </div>
+
+                            <button 
+                                @click="finalizarRuta(activeRuta.id)"
+                                :disabled="formFinalizarRuta.processing"
+                                class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition flex justify-center items-center gap-2"
+                            >
+                                <span v-if="formFinalizarRuta.processing" class="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
+                                Marcar Salida (Llegada al Almacén)
+                            </button>
+                        </div>
+                        
+                        <div v-else class="text-zinc-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-4 text-emerald-500/50 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <p class="font-medium text-white mb-1">Punto finalizado</p>
+                            <p class="text-xs">Cargando siguiente destino...</p>
+                        </div>
                     </div>
 
                     <!-- Botón Cancelar Ruta Maestra -->
@@ -511,11 +619,10 @@ const finalizarPunto = (ventaId, res) => {
                     </div>
 
                     <div>
-                        <label class="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Fotografía de Evidencia (Obligatorio)</label>
+                        <label class="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Fotografía de Evidencia (Opcional)</label>
                         <div class="relative w-full border-2 border-dashed border-zinc-700 rounded-xl bg-zinc-950 hover:bg-zinc-900 transition flex flex-col items-center justify-center p-4 cursor-pointer" :class="{'border-rose-500': formCancelar.foto}">
                             <input 
                                 type="file" 
-                                required 
                                 accept="image/*"
                                 capture="environment"
                                 @change="(e) => formCancelar.foto = e.target.files[0]"
@@ -528,8 +635,8 @@ const finalizarPunto = (ventaId, res) => {
                         <div v-if="formCancelar.errors.foto" class="text-rose-500 text-xs mt-1">{{ formCancelar.errors.foto }}</div>
                     </div>
 
-                    <div v-if="formCancelar.errors.ruta" class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg text-rose-500 text-xs">
-                        {{ formCancelar.errors.ruta }}
+                    <div v-if="Object.keys(formCancelar.errors).length > 0" class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg text-rose-500 text-xs space-y-1">
+                        <p v-for="(err, key) in formCancelar.errors" :key="key">{{ err }}</p>
                     </div>
 
                     <div class="flex gap-3 pt-2 border-t border-zinc-800">
@@ -557,15 +664,9 @@ const finalizarPunto = (ventaId, res) => {
     animation: shake 0.3s ease-in-out;
 }
 
-/* Modo Oscuro para el panel de instrucciones de Waze (Leaflet Routing Machine) */
+/* Ocultar el panel de instrucciones de Leaflet Routing Machine */
 :deep(.leaflet-routing-container) {
-    background-color: #18181b !important; /* zinc-900 */
-    color: #a1a1aa !important; /* zinc-400 */
-    border: 1px solid #27272a !important; /* zinc-800 */
-    border-radius: 0.75rem !important;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.8) !important;
-    padding-bottom: 5px !important;
-    margin-right: 15px !important;
+    display: none !important;
 }
 
 :deep(.leaflet-routing-alt) {

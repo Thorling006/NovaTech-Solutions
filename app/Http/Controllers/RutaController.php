@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\DB;
 
 class RutaController extends Controller
 {
-    private $latBase = 13.840204;
-    private $lngBase = -88.854427;
+    private $latBase = 13.348428;
+    private $lngBase = -88.440182;
 
     private function calcularDistancia($lat1, $lng1, $lat2, $lng2) {
         $earthRadius = 6371;
@@ -29,10 +29,12 @@ class RutaController extends Controller
             ->whereNull('ruta_logistica_id')
             ->whereIn('estado_envio', ['pendiente'])
             ->orderBy('created_at', 'desc')
+            ->take(100)
             ->get();
             
         $rutas = RutaLogistica::with(['conductor', 'ventas.cliente'])
             ->orderBy('created_at', 'desc')
+            ->take(100)
             ->get();
 
         $ventas_entregadas = Venta::with(['cliente', 'conductor'])
@@ -46,6 +48,7 @@ class RutaController extends Controller
         $ventas_nunca_entregadas = Venta::with(['cliente'])
             ->where('estado_envio', 'nunca_entregado')
             ->orderBy('updated_at', 'desc')
+            ->take(100)
             ->get();
 
         return Inertia::render('Rutas/Index', [
@@ -59,6 +62,10 @@ class RutaController extends Controller
 
     public function storeRuta(Request $request)
     {
+        if ($request->input('conductor_id') === '') {
+            $request->merge(['conductor_id' => null]);
+        }
+
         $request->validate([
             'nombre' => 'nullable|string|max:255',
             'conductor_id' => 'nullable|exists:conductores,id',
@@ -67,6 +74,61 @@ class RutaController extends Controller
             'ventas_ids' => 'required|array|min:1',
             'ventas_ids.*' => 'exists:ventas,id'
         ]);
+
+        // Simular y validar horarios de entrega
+        $ventas = Venta::with('cliente')->whereIn('id', $request->ventas_ids)->get()->keyBy('id');
+        
+        $lastLat = $this->latBase;
+        $lastLng = $this->lngBase;
+        $currentTime = \Carbon\Carbon::parse($request->hora_programada);
+
+        foreach ($request->ventas_ids as $ventaId) {
+            $venta = $ventas->get($ventaId);
+            if (!$venta) continue;
+
+            // 1. Distancia
+            $distanciaKm = $this->calcularDistancia($lastLat, $lastLng, $venta->latitud, $venta->longitud);
+            
+            // 2. Tiempo de traslado (30 km/h = 2 min/km)
+            $tiempoTrasladoMin = round($distanciaKm * 2);
+            $currentTime->addMinutes($tiempoTrasladoMin);
+
+            // 3. Validar horario
+            $horario = $venta->horario_entrega;
+            if ($horario && $horario !== 'flexible') {
+                $horaHms = $currentTime->format('H:i:s');
+                $valido = false;
+                $mensajeHorario = '';
+
+                if ($horario === 'morning') {
+                    if ($horaHms >= '08:00:00' && $horaHms <= '12:00:00') $valido = true;
+                    $mensajeHorario = 'Mañana (8:00 AM - 12:00 MD)';
+                } elseif ($horario === 'afternoon') {
+                    if ($horaHms >= '13:00:00' && $horaHms <= '17:00:00') $valido = true;
+                    $mensajeHorario = 'Tarde (1:00 PM - 5:00 PM)';
+                } elseif ($horario === 'evening') {
+                    if ($horaHms >= '18:00:00' && $horaHms <= '21:00:00') $valido = true;
+                    $mensajeHorario = 'Noche (6:00 PM - 9:00 PM)';
+                } else {
+                    $valido = true;
+                }
+
+                if (!$valido) {
+                    $horaEstimada = $currentTime->format('h:i A');
+                    $nombreCliente = $venta->cliente ? $venta->cliente->nombre : 'Desconocido';
+                    return back()->withErrors([
+                        'error' => "El pedido #{$venta->id} para el cliente '{$nombreCliente}' no se puede entregar en su horario de preferencia. Horario solicitado: {$mensajeHorario}. Hora estimada de llegada: {$horaEstimada}."
+                    ]);
+                }
+            }
+
+            // 4. Tiempo de entrega (15 minutos)
+            $currentTime->addMinutes(15);
+
+            // 5. Siguiente punto de partida
+            $lastLat = $venta->latitud;
+            $lastLng = $venta->longitud;
+        }
 
         try {
             DB::beginTransaction();

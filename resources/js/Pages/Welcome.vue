@@ -1,11 +1,13 @@
 <script setup>
-import { Head, useForm, Link, router } from '@inertiajs/vue3';
+import { Head, useForm, Link, router, usePage } from '@inertiajs/vue3';
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 
 const props = defineProps({
     canLogin: Boolean,
     canRegister: Boolean,
-    productos: Array
+    productos: Array,
+    laravelVersion: String,
+    phpVersion: String
 });
 
 // Navegación
@@ -16,6 +18,7 @@ const cart = ref([]);
 const isCartOpen = ref(false);
 const shippingCost = ref(0);
 const confirmedTrackingId = ref(null);
+const confirmedPdfUrl = ref(null);
 
 // Cargar carrito del localStorage
 onMounted(() => {
@@ -26,6 +29,14 @@ onMounted(() => {
         } catch (e) {
             cart.value = [];
         }
+    }
+
+    // Por si la página se recarga o ya tenemos props listos
+    if (router.page?.props?.flash?.tracking_id) {
+        confirmedTrackingId.value = router.page.props.flash.tracking_id;
+    }
+    if (router.page?.props?.flash?.pdf_url) {
+        confirmedPdfUrl.value = router.page.props.flash.pdf_url;
     }
 
     // Silent Refresh Polling
@@ -48,15 +59,40 @@ watch(cart, (newCart) => {
     localStorage.setItem('novastock_cart', JSON.stringify(newCart));
 }, { deep: true });
 
-// Búsqueda y filtrado de productos
+// Búsqueda y filtrado de productos por Categoría
 const searchQuery = ref('');
+const selectedCategoria = ref('Todas');
+
+const categorias = computed(() => {
+    const cats = new Set();
+    if (props.productos) {
+        props.productos.forEach(p => {
+            if (p.categoria && p.categoria.nombre) cats.add(p.categoria.nombre);
+        });
+    }
+    return ['Todas', ...Array.from(cats)].sort();
+});
+
 const filteredProductos = computed(() => {
-    if (!searchQuery.value) return props.productos;
-    const query = searchQuery.value.toLowerCase();
-    return props.productos.filter(p => 
-        p.nombre.toLowerCase().includes(query) || 
-        (p.categoria && p.categoria.nombre.toLowerCase().includes(query))
-    );
+    if (!props.productos) return [];
+    
+    let result = props.productos;
+    
+    // Filtrar por categoría
+    if (selectedCategoria.value !== 'Todas') {
+        result = result.filter(p => p.categoria && p.categoria.nombre === selectedCategoria.value);
+    }
+    
+    // Filtrar por búsqueda
+    if (searchQuery.value) {
+        const query = searchQuery.value.toLowerCase();
+        result = result.filter(p => 
+            p.nombre.toLowerCase().includes(query) || 
+            (p.categoria && p.categoria.nombre.toLowerCase().includes(query))
+        );
+    }
+    
+    return result;
 });
 
 // Agregar producto al carrito
@@ -310,6 +346,10 @@ const validateStep1 = () => {
         checkoutForm.setError('cliente.correo', 'El correo debe ser un email válido.');
         hasErrors = true;
     }
+    if (!checkoutForm.cliente.telefono) {
+        checkoutForm.setError('cliente.telefono', 'El teléfono es obligatorio.');
+        hasErrors = true;
+    }
     
     if (!hasErrors) {
         checkoutStep.value = 2;
@@ -380,9 +420,14 @@ const submitCheckout = () => {
             cart.value = [];
             localStorage.removeItem('novastock_cart');
             
-            if (page.props.flash && page.props.flash.tracking_id) {
-                confirmedTrackingId.value = page.props.flash.tracking_id;
-            }
+            // Forzar la lectura de las variables flash mediante un microtask/nextTick
+            nextTick(() => {
+                const flash = usePage().props.flash || page.props.flash;
+                if (flash) {
+                    confirmedTrackingId.value = flash.tracking_id;
+                    confirmedPdfUrl.value = flash.pdf_url;
+                }
+            });
         },
         onError: () => {
             stopValidationMessages();
@@ -390,6 +435,14 @@ const submitCheckout = () => {
         }
     });
 };
+
+// Observar de manera reactiva los cambios en los props compartidos por Inertia
+watch(() => usePage().props.flash, (newFlash) => {
+    if (newFlash) {
+        if (newFlash.tracking_id) confirmedTrackingId.value = newFlash.tracking_id;
+        if (newFlash.pdf_url) confirmedPdfUrl.value = newFlash.pdf_url;
+    }
+}, { immediate: true, deep: true });
 </script>
 
 <template>
@@ -640,69 +693,104 @@ const submitCheckout = () => {
                     </div>
                 </div>
 
-            <!-- Grilla de Productos -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in-up stagger">
-                <div 
-                    v-for="producto in filteredProductos" 
-                    :key="producto.id" 
-                    class="card bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/80 rounded-2xl p-6 flex flex-col justify-between group hover:border-zinc-700 transition-all duration-300"
-                >
-                    <div>
-                        <!-- Header de Tarjeta -->
-                        <div class="flex justify-between items-start mb-4">
-                            <span class="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-zinc-800 text-zinc-400">
-                                {{ producto.categoria?.nombre || 'General' }}
-                            </span>
-                            
-                            <span 
-                                :class="[
-                                    producto.stock_actual === 0 ? 'text-rose-500 bg-rose-500/5 border border-rose-500/10' :
-                                    producto.stock_actual <= producto.stock_minimo ? 'text-amber-500 bg-amber-500/5 border border-amber-500/10' :
-                                    'text-zinc-500 bg-zinc-800/20'
-                                ]" 
-                                class="text-[11px] font-medium px-2 py-0.5 rounded"
-                            >
-                                {{ producto.stock_actual === 0 ? 'Agotado' : `${producto.stock_actual} disp.` }}
-                            </span>
-                        </div>
-
-                        <!-- Nombre e Info -->
-                        <h3 class="text-lg font-bold text-white mb-2 group-hover:text-white transition-colors">
-                            {{ producto.nombre }}
-                        </h3>
-                        <p class="text-zinc-400 text-xs font-light leading-relaxed mb-6">
-                            {{ producto.descripcion || 'Sin descripción detallada.' }}
-                        </p>
-                    </div>
-
-                    <!-- Precio y Comprar -->
-                    <div class="flex items-center justify-between mt-auto">
-                        <div>
-                            <span class="text-[10px] text-zinc-500 uppercase tracking-widest block font-medium">Precio</span>
-                            <span class="text-xl font-extrabold text-white">${{ parseFloat(producto.precio).toFixed(2) }}</span>
-                        </div>
-
-                        <button 
-                            @click="addToCart(producto)" 
-                            :disabled="producto.stock_actual <= 0"
-                            class="px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all"
-                            :class="[
-                                producto.stock_actual <= 0 
-                                ? 'bg-zinc-800/50 text-zinc-600 cursor-not-allowed' 
-                                : 'bg-white text-zinc-950 hover:bg-zinc-200 hover:scale-105 active:scale-95'
-                            ]"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            <!-- Grilla y Sidebar de Productos -->
+            <div class="flex flex-col md:flex-row gap-8">
+                <!-- Sidebar de Categorías -->
+                <div class="w-full md:w-64 flex-shrink-0">
+                    <div class="sticky top-28 bg-zinc-900/30 border border-zinc-800/80 rounded-2xl p-4 backdrop-blur-md">
+                        <h3 class="text-white font-bold mb-4 uppercase tracking-wider text-sm flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                             </svg>
-                            Añadir
-                        </button>
+                            Categorías
+                        </h3>
+                        <div class="flex md:flex-col gap-2 overflow-x-auto md:overflow-y-auto md:max-h-[50vh] pb-2 md:pb-0 pr-2 custom-scrollbar">
+                            <button 
+                                v-for="cat in categorias" 
+                                :key="cat" 
+                                @click="selectedCategoria = cat"
+                                class="text-left px-4 py-2.5 rounded-xl text-sm transition-all whitespace-nowrap md:whitespace-normal"
+                                :class="selectedCategoria === cat ? 'bg-blue-500/20 text-blue-400 font-bold border border-blue-500/30' : 'text-zinc-400 hover:text-white hover:bg-zinc-800 border border-transparent'"
+                            >
+                                {{ cat }}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Estado Vacío -->
-                <div v-if="filteredProductos.length === 0" class="col-span-full text-center py-20 bg-zinc-900/10 border border-dashed border-zinc-800 rounded-2xl">
-                    <p class="text-zinc-500 text-sm">No se encontraron productos en la tienda.</p>
+                <!-- Grilla Principal -->
+                <div class="flex-grow">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in-up stagger">
+                        <div 
+                            v-for="producto in filteredProductos" 
+                            :key="producto.id" 
+                            class="card bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/80 rounded-2xl p-5 flex flex-col justify-between group hover:border-zinc-700 hover:bg-zinc-900/60 transition-all duration-300"
+                        >
+                            <div>
+                                <!-- Imagen del Producto -->
+                                <div v-if="producto.imagen" class="w-full h-48 mb-4 rounded-xl overflow-hidden bg-white flex items-center justify-center p-2">
+                                    <img :src="producto.imagen.startsWith('http') ? producto.imagen : '/storage/' + producto.imagen" :alt="producto.nombre" class="max-w-full max-h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500" />
+                                </div>
+                                <div v-else class="w-full h-48 mb-4 rounded-xl overflow-hidden bg-zinc-800 flex items-center justify-center">
+                                    <span class="text-zinc-650 text-sm font-medium">Sin imagen</span>
+                                </div>
+                                <!-- Header de Tarjeta -->
+                                <div class="flex justify-between items-start mb-4">
+                                    <span class="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-zinc-800 text-zinc-400">
+                                        {{ producto.categoria?.nombre || 'General' }}
+                                    </span>
+                                    
+                                    <span 
+                                        :class="[
+                                            producto.stock_actual === 0 ? 'text-rose-500 bg-rose-500/5 border border-rose-500/10' :
+                                            producto.stock_actual <= producto.stock_minimo ? 'text-amber-500 bg-amber-500/5 border border-amber-500/10' :
+                                            'text-zinc-500 bg-zinc-800/20'
+                                        ]" 
+                                        class="text-[11px] font-medium px-2 py-0.5 rounded"
+                                    >
+                                        {{ producto.stock_actual === 0 ? 'Agotado' : `${producto.stock_actual} disp.` }}
+                                    </span>
+                                </div>
+
+                                <!-- Nombre e Info -->
+                                <h3 class="text-lg font-bold text-white mb-2 group-hover:text-white transition-colors line-clamp-3">
+                                    {{ producto.nombre }}
+                                </h3>
+                                <p class="text-zinc-400 text-xs font-light leading-relaxed mb-6 line-clamp-2">
+                                    {{ producto.descripcion || 'Sin descripción detallada.' }}
+                                </p>
+                            </div>
+
+                            <!-- Precio y Comprar -->
+                            <div class="flex items-center justify-between mt-auto pt-4 border-t border-zinc-800/50">
+                                <div>
+                                    <span class="text-[10px] text-zinc-500 uppercase tracking-widest block font-medium">Precio</span>
+                                    <span class="text-xl font-extrabold text-white">${{ parseFloat(producto.precio).toFixed(2) }}</span>
+                                </div>
+
+                                <button 
+                                    @click="addToCart(producto)" 
+                                    :disabled="producto.stock_actual <= 0"
+                                    class="px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-lg shadow-black/20"
+                                    :class="[
+                                        producto.stock_actual <= 0 
+                                        ? 'bg-zinc-800/50 text-zinc-600 cursor-not-allowed' 
+                                        : 'bg-white text-zinc-950 hover:bg-zinc-200 hover:scale-105 active:scale-95'
+                                    ]"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Añadir
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Estado Vacío -->
+                        <div v-if="filteredProductos.length === 0" class="col-span-full text-center py-20 bg-zinc-900/10 border border-dashed border-zinc-800 rounded-2xl">
+                            <p class="text-zinc-500 text-sm">No se encontraron productos en la tienda para esta categoría.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
             </section>
@@ -849,7 +937,7 @@ const submitCheckout = () => {
                             </div>
 
                             <div>
-                                <label class="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Teléfono (Opcional)</label>
+                                <label class="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Teléfono (Requerido)</label>
                                 <input 
                                     type="text" 
                                     v-model="checkoutForm.cliente.telefono" 
@@ -1131,7 +1219,7 @@ const submitCheckout = () => {
                                 Tu pedido ha sido procesado de manera exitosa. La transacción fue aprobada, la dirección de entrega fue registrada y los registros de inventario se actualizaron correctamente.
                             </p>
                             
-                            <div v-if="confirmedTrackingId" class="mt-6 p-5 border-2 border-rose-500/50 bg-rose-500/10 rounded-2xl max-w-sm mx-auto text-center animate-fade-in-up relative overflow-hidden shadow-lg shadow-rose-500/20">
+                            <div v-if="confirmedTrackingId || usePage().props.flash?.tracking_id" class="mt-6 p-5 border-2 border-rose-500/50 bg-rose-500/10 rounded-2xl max-w-sm mx-auto text-center animate-fade-in-up relative overflow-hidden shadow-lg shadow-rose-500/20">
                                 <div class="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-rose-500 to-purple-500"></div>
                                 <h4 class="text-rose-400 font-bold mb-3 flex items-center justify-center gap-2">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
@@ -1142,14 +1230,26 @@ const submitCheckout = () => {
                                 <p class="text-[12px] text-zinc-300 mb-5 leading-relaxed">Este es el <strong>único momento</strong> en que verás este código. Es indispensable para rastrear el progreso de tu entrega.</p>
                                 
                                 <p class="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mb-2">Tu ID de Seguimiento</p>
-                                <p class="text-3xl font-mono font-black text-white tracking-widest py-4 bg-zinc-950 rounded-xl border border-zinc-800 shadow-inner select-all">{{ confirmedTrackingId }}</p>
+                                <p class="text-3xl font-mono font-black text-white tracking-widest py-4 bg-zinc-950 rounded-xl border border-zinc-800 shadow-inner select-all">{{ confirmedTrackingId || usePage().props.flash?.tracking_id }}</p>
                             </div>
                         </div>
 
-                        <div class="pt-4">
+                        <div class="pt-4 flex flex-col sm:flex-row gap-3 justify-center items-center">
+                            <a 
+                                v-if="confirmedPdfUrl || usePage().props.flash?.pdf_url" 
+                                :href="confirmedPdfUrl || usePage().props.flash?.pdf_url" 
+                                download
+                                target="_blank"
+                                class="bg-blue-600 text-white px-8 py-3 rounded-xl text-xs font-bold hover:bg-blue-500 transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                Descargar Factura (PDF)
+                            </a>
                             <button 
                                 @click="closeCheckout" 
-                                class="bg-white text-zinc-950 px-8 py-3 rounded-xl text-xs font-bold hover:bg-zinc-200 transition-all"
+                                class="bg-zinc-800 text-zinc-350 hover:bg-zinc-700 hover:text-white px-8 py-3 rounded-xl text-xs font-bold transition-all active:scale-95"
                             >
                                 Volver al catálogo
                             </button>

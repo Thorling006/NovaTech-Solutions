@@ -7,6 +7,7 @@ use Inertia\Inertia;
 
 Route::get('/', [\App\Http\Controllers\CatalogoController::class, 'index'])->name('home');
 Route::post('/checkout', [\App\Http\Controllers\CatalogoController::class, 'checkout'])->name('checkout');
+Route::get('/invoice/{id}/download', [\App\Http\Controllers\CatalogoController::class, 'downloadInvoice'])->name('invoice.download');
 
 Route::get('/dashboard', function () {
     if (auth()->user()->role_id == 4) {
@@ -109,6 +110,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/conductor/ruta/{ruta}/iniciar', [\App\Http\Controllers\ConductorPanelController::class, 'iniciarRuta'])->name('conductor.ruta.iniciar');
         Route::post('/conductor/venta/{venta}/llegar', [\App\Http\Controllers\ConductorPanelController::class, 'llegarAlPunto'])->name('conductor.venta.llegar');
         Route::post('/conductor/venta/{venta}/finalizar', [\App\Http\Controllers\ConductorPanelController::class, 'finalizarPunto'])->name('conductor.venta.finalizar');
+        Route::post('/conductor/ruta/{ruta}/llegar-almacen', [\App\Http\Controllers\ConductorPanelController::class, 'llegarAlAlmacen'])->name('conductor.ruta.llegar_almacen');
+        Route::post('/conductor/ruta/{ruta}/finalizar', [\App\Http\Controllers\ConductorPanelController::class, 'finalizarRuta'])->name('conductor.ruta.finalizar');
         Route::post('/conductor/ruta/{ruta}/cancelar', [\App\Http\Controllers\ConductorPanelController::class, 'cancelarRuta'])->name('conductor.ruta.cancelar');
     });
 });
