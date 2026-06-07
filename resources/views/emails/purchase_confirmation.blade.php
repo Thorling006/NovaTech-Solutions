@@ -8,7 +8,7 @@ Hemos recibido tu pago correctamente. Adjunto a este correo encontrarás tu fact
 ### Datos de tu compra:
 * **Número de Venta (Ticket):** `{{ $venta->id }}`
 * **Código de Seguimiento:** `{{ $venta->tracking_id }}`
-* **Total Pagado:** ${{ number_ his ?? number_format($venta->total, 2) }}
+* **Total Pagado:** ${{ number_format($venta->total, 2) }}
 * **Dirección de Entrega:** {{ $venta->direccion }}
 * **Horario de Entrega Seleccionado:** {{ $venta->horario_entrega }}
 
