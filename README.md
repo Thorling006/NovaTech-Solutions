@@ -1,59 +1,385 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# NovaTech Solutions
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## Universidad
 
-## About Laravel
+Universidad Gerardo Barrios (UGB)
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Facultad
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Facultad de Ciencia y Tecnología
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Carrera
 
-## Learning Laravel
+Ingeniería en Sistemas y Redes Informáticas
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+## Asignatura
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Programación Computacional IV
 
-## Laravel Sponsors
+## Docente
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+William Montes
 
-### Premium Partners
+## Año
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+2026
 
-## Contributing
+---
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+# Integrantes
 
-## Code of Conduct
+- Omar David Ventura Cruz
+- Yensi Elizabeth Valladares Ventura
+- Brayan Adaly Campos Martinez
+- Kevin Antonio Castro Araujo
+- Jeremias Neftaly Fuentes Mendez
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+---
 
-## Security Vulnerabilities
+# Descripción del Proyecto
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+NovaTech Solutions es un sistema web desarrollado para la gestión integral de inventario, ventas y logística de distribución. La plataforma permite administrar productos, categorías, movimientos de inventario, usuarios, rutas de entrega y seguimiento de pedidos desde una interfaz moderna y eficiente.
 
-## License
+El objetivo principal del sistema es optimizar los procesos operativos de una empresa tecnológica mediante la automatización de tareas administrativas y logísticas, permitiendo un mejor control de los recursos y una mayor eficiencia en la toma de decisiones.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+---
+
+# Objetivo General
+
+Desarrollar una plataforma web que permita gestionar de manera eficiente el inventario, las ventas y los procesos logísticos de una empresa, proporcionando herramientas que faciliten el control de la información y mejoren la productividad organizacional.
+
+---
+
+# Objetivos Específicos
+
+- Administrar productos y categorías.
+- Controlar entradas y salidas de inventario.
+- Gestionar usuarios mediante roles y permisos.
+- Registrar y consultar ventas.
+- Administrar rutas de entrega.
+- Facilitar el seguimiento de pedidos.
+- Centralizar la información operativa en una única plataforma.
+
+---
+
+# Arquitectura del Sistema
+
+El sistema fue desarrollado utilizando una arquitectura SPA (Single Page Application) basada en tecnologías modernas.
+
+## Frontend
+
+- Vue.js 3
+- Inertia.js
+- Bootstrap 5
+- Vite
+
+## Backend
+
+- Laravel 11
+- PHP 8.2
+
+## Base de Datos
+
+- PostgreSQL
+
+## Patrón de Diseño
+
+- MVC (Modelo - Vista - Controlador)
+
+---
+
+# Tecnologías Utilizadas
+
+| Tecnología | Función |
+|------------|----------|
+| Laravel 11 | Backend |
+| Vue.js 3 | Interfaz de usuario |
+| Inertia.js | Comunicación Frontend-Backend |
+| PostgreSQL | Base de datos |
+| Bootstrap 5 | Diseño responsivo |
+| Vite | Compilación de recursos |
+| Laravel Breeze | Autenticación |
+| Ziggy | Rutas JavaScript |
+| DomPDF | Generación de documentos PDF |
+
+---
+
+# Funcionalidades Implementadas
+
+## Gestión de Usuarios
+
+- Registro de usuarios.
+- Inicio de sesión.
+- Recuperación de contraseña.
+- Verificación de correo electrónico.
+- Gestión de perfiles.
+
+## Gestión de Roles
+
+- Superusuario.
+- Administrador.
+- Empleado.
+- Conductor.
+
+## Gestión de Categorías
+
+- Crear categorías.
+- Editar categorías.
+- Eliminar categorías.
+- Consultar categorías.
+
+## Gestión de Productos
+
+- Crear productos.
+- Editar productos.
+- Eliminar productos.
+- Asignación de categorías.
+- Control de stock.
+
+## Gestión de Inventario
+
+- Registro de entradas.
+- Registro de salidas.
+- Historial de movimientos.
+- Actualización automática de existencias.
+
+## Gestión de Ventas
+
+- Registro de ventas.
+- Consulta de ventas.
+- Relación entre ventas y productos.
+
+## Dashboard Administrativo
+
+- Estadísticas generales.
+- Indicadores de productos.
+- Indicadores de inventario.
+- Indicadores de ventas.
+
+## Catálogo Público
+
+- Visualización de productos.
+- Información detallada.
+- Consulta pública.
+
+## Gestión Logística
+
+- Administración de rutas.
+- Asignación de conductores.
+- Actualización de estados.
+
+## Seguimiento de Entregas
+
+- Consulta de pedidos.
+- Seguimiento de entregas.
+- Actualización de estados logísticos.
+
+---
+
+# Estructura General del Sistema
+
+NovaTech Solutions se encuentra organizado en módulos independientes que permiten mantener una arquitectura escalable y fácil de mantener.
+
+- Módulo de Autenticación.
+- Módulo de Usuarios.
+- Módulo de Roles.
+- Módulo de Categorías.
+- Módulo de Productos.
+- Módulo de Inventario.
+- Módulo de Ventas.
+- Módulo de Logística.
+- Módulo de Conductores.
+- Módulo de Seguimiento.
+
+---
+
+# Instalación del Proyecto
+
+## Clonar repositorio
+
+```bash
+git clone https://github.com/Thorling006/NovaTech-Solutions.git
+```
+
+## Ingresar al proyecto
+
+```bash
+cd NovaTech-Solutions
+```
+
+## Instalar dependencias PHP
+
+```bash
+composer install
+```
+
+## Instalar dependencias Node
+
+```bash
+npm install
+```
+
+## Crear archivo .env
+
+```bash
+cp .env.example .env
+```
+
+## Generar APP_KEY
+
+```bash
+php artisan key:generate
+```
+
+## Ejecutar migraciones
+
+```bash
+php artisan migrate
+```
+
+## Ejecutar seeders
+
+```bash
+php artisan db:seed
+```
+
+## Iniciar frontend
+
+```bash
+npm run dev
+```
+
+## Iniciar servidor Laravel
+
+```bash
+php artisan serve
+```
+
+---
+
+# Credenciales de Acceso
+
+## Superusuario
+
+Correo:
+
+```text
+admin@novastock.test
+```
+
+Contraseña:
+
+```text
+password
+```
+
+Rol:
+
+```text
+Superusuario
+```
+
+---
+
+## Conductores
+
+### Carlos
+
+Correo:
+
+```text
+carlos@conductor.test
+```
+
+Contraseña:
+
+```text
+password
+```
+
+### Luis
+
+Correo:
+
+```text
+luis@conductor.test
+```
+
+Contraseña:
+
+```text
+password
+```
+
+### Juan
+
+Correo:
+
+```text
+juan@conductor.test
+```
+
+Contraseña:
+
+```text
+password
+```
+
+---
+
+# Roles Disponibles
+
+- Superusuario
+- Administrador
+- Empleado
+- Conductor
+
+---
+
+# Estado Actual del Proyecto
+
+### Implementado
+
+✅ Gestión de usuarios
+
+✅ Gestión de roles
+
+✅ Gestión de categorías
+
+✅ Gestión de productos
+
+✅ Gestión de inventario
+
+✅ Gestión de ventas
+
+✅ Dashboard administrativo
+
+✅ Catálogo público
+
+✅ Gestión logística
+
+✅ Seguimiento de pedidos
+
+✅ Panel de conductor
+
+### Mejoras Futuras
+
+- Reportes avanzados.
+- Exportación de información.
+- Notificaciones automáticas.
+- Mejoras visuales.
+- Optimización de rendimiento.
+
+---
+
+# Repositorio Oficial
+
+GitHub:
+
+https://github.com/Thorling006/NovaTech-Solutions
+
+---
+
+© 2026 - NovaTech Solutions
+Universidad Gerardo Barrios
+Programación Computacional IV
